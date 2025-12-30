@@ -1,20 +1,20 @@
 import { definePlugin } from '@tempad-dev/plugins'
+import { generateComposeCode } from './compose'
 import {
   generateAndroidTag,
 } from './utils'
-import { generateComposeCode } from './compose'
 
 export default definePlugin({
   name: 'android-xml-style',
   code: {
-    css: {
+    'css': {
       title: 'delete-CSS',
       lang: 'css',
       transform() {
         return ''
       },
     },
-    js: {
+    'js': {
       title: 'delete-JavaScript',
       lang: 'js',
       transform() {

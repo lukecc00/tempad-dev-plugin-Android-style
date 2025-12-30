@@ -10,4 +10,4 @@ await esbuild.build({
   external: ['@tempad-dev/plugins'],
   sourcemap: true,
 })
-  .catch(() => process.exit(1)) 
+  .catch(() => process.exit(1))
