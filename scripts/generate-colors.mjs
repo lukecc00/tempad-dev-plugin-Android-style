@@ -13,7 +13,8 @@ function parseColorsXml(filePath) {
   const colorMap = {};
   
   // Regex to find <color name="name">#value</color>
-  const regex = /<color name="([^"]+)">\s*(#[0-9A-Fa-f]+)\s*<\/color>/g;
+  // Supports optional whitespace around the hex value and between # and digits
+  const regex = /<color name="([^"]+)">\s*#\s*([0-9A-Fa-f]+)\s*<\/color>/g;
   let match;
   
   while ((match = regex.exec(content)) !== null) {
@@ -21,13 +22,23 @@ function parseColorsXml(filePath) {
     let value = match[2].toUpperCase();
     
     // Normalize to #AARRGGBB
-    if (value.length === 7) { // #RRGGBB
-      value = '#FF' + value.substring(1);
+    // Value now is just the hex digits (without #)
+    
+    // If it's 3 digits: RGB -> AARRGGBB
+    if (value.length === 3) {
+      value = 'FF' + value[0] + value[0] + value[1] + value[1] + value[2] + value[2];
     }
+    // If it's 6 digits: RRGGBB -> AARRGGBB
+    else if (value.length === 6) {
+      value = 'FF' + value;
+    }
+    // If it's 8 digits: AARRGGBB -> AARRGGBB (Already correct)
+    
+    const hexKey = '#' + value;
     
     // Store the FIRST name for a given hex value
-    if (!colorMap[value]) {
-      colorMap[value] = name;
+    if (!colorMap[hexKey]) {
+      colorMap[hexKey] = name;
     }
   }
   
