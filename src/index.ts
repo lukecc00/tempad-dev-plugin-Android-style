@@ -22,26 +22,34 @@ export default definePlugin({
         return ''
       },
     },
-    // Android XML 输出
+    // Android XML Style (Single Node)
     'android-xml': {
-      title: 'Android XML',
+      title: 'Android XML (Style)',
       lang: 'xml' as any,
       transform({ style }) {
-        const code = generateAndroidTag(style)
-        return `<!-- \n  Tip: Select a 'Component' or 'Instance' to view the full nested tree structure.\n  Currently viewing style for a single node.\n-->\n${code}`
+        return generateAndroidTag(style)
       },
+    },
+    // Android XML Tree (Component/Instance)
+    'android-xml-tree': {
+      title: 'Android XML (Component)',
+      lang: 'xml' as any,
       transformComponent({ component }) {
         return generateXmlComponent(component)
       },
     },
-    // Android Compose 输出
+    // Android Compose Style (Single Node)
     'android-compose': {
-      title: 'Jetpack Compose',
+      title: 'Jetpack Compose (Style)',
       lang: 'kotlin' as any,
       transform({ style }) {
-        const code = generateComposeCode(style)
-        return `/* \n  提示：请选中一个 Component 或 Instance 以生成完整的嵌套结构代码。\n  当前仅展示选中节点的样式代码。\n*/\n${code}`
+        return generateComposeCode(style)
       },
+    },
+    // Android Compose Tree (Component/Instance)
+    'android-compose-tree': {
+      title: 'Jetpack Compose (Component)',
+      lang: 'kotlin' as any,
       transformComponent({ component }) {
         return generateComposeComponent(component)
       },
