@@ -15,6 +15,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
+    "gen:colors": "node scripts/generate-colors.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

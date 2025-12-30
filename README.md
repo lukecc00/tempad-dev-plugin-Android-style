@@ -47,6 +47,18 @@ pnpm install
 pnpm run build
 ```
 
+3. **更新颜色映射**
+
+当你更新了 `assets/colors.xml` 文件后，需要运行以下命令来同步更新插件代码中的颜色映射表：
+
+```bash
+npm run gen:colors
+# 或者如果你使用 pnpm
+pnpm run gen:colors
+```
+
+该命令会读取 `assets/colors.xml` 并自动生成 `src/color-map.ts` 文件。
+
 构建产物位于 `dist/index.mjs`。
 
 关于本插件的技术实现原理和开发指南，请参考 [技术文档](./docs/TECHNICAL_GUIDE.md)。

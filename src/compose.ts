@@ -1,4 +1,4 @@
-import { parseBoxModel } from './utils'
+import { convertColorToHex, parseBoxModel } from './utils'
 
 // Helper to convert px to dp/sp for Compose (with dot syntax)
 function convertComposeUnit(value: string, type: 'dp' | 'sp' = 'dp'): string {
@@ -70,82 +70,26 @@ export function convertColor(color: string): string {
     return 'Color.Unspecified'
   }
 
-  // Handle Hex
-  if (color.startsWith('#')) {
-    let hex = color.substring(1)
+  // Use shared utility to resolve color (handles mapping to colors.xml)
+  const hexOrRes = convertColorToHex(color)
 
-    // Expand shorthand #RGB -> #RRGGBB
-    if (hex.length === 3) {
-      hex = hex.split('').map(c => c + c).join('')
-    }
-    // Expand shorthand #RGBA -> #RRGGBBAA
-    if (hex.length === 4) {
-      hex = hex.split('').map(c => c + c).join('')
-    }
+  if (hexOrRes.startsWith('@color/')) {
+    // @color/name -> colorResource(id = R.color.name)
+    const name = hexOrRes.substring(7)
+    return `colorResource(id = R.color.${name})`
+  }
 
-    // Now we have 6 or 8 chars
+  if (hexOrRes.startsWith('#')) {
+    const hex = hexOrRes.substring(1)
     if (hex.length === 6) {
       return `Color(0xFF${hex.toUpperCase()})`
     }
     if (hex.length === 8) {
-      // CSS: RRGGBBAA
-      // Android: AARRGGBB
-      const r = hex.substring(0, 2)
-      const g = hex.substring(2, 4)
-      const b = hex.substring(4, 6)
-      const a = hex.substring(6, 8)
-      return `Color(0x${(a + r + g + b).toUpperCase()})`
+      return `Color(0x${hex.toUpperCase()})`
     }
   }
 
-  // Handle rgba(r, g, b, a)
-  if (color.startsWith('rgba')) {
-    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
-    if (match) {
-      const r = Number.parseInt(match[1])
-      const g = Number.parseInt(match[2])
-      const b = Number.parseInt(match[3])
-      const a = match[4] ? Number.parseFloat(match[4]) : 1.0
-
-      const alphaInt = Math.round(a * 255)
-      const toHex = (n: number): string => n.toString(16).padStart(2, '0').toUpperCase()
-
-      return `Color(0x${toHex(alphaInt)}${toHex(r)}${toHex(g)}${toHex(b)})`
-    }
-  }
-
-  // Handle rgb(r, g, b)
-  if (color.startsWith('rgb')) {
-    const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
-    if (match) {
-      const r = Number.parseInt(match[1])
-      const g = Number.parseInt(match[2])
-      const b = Number.parseInt(match[3])
-      const toHex = (n: number): string => n.toString(16).padStart(2, '0').toUpperCase()
-      return `Color(0xFF${toHex(r)}${toHex(g)}${toHex(b)})`
-    }
-  }
-
-  // Map common names
-  const map: Record<string, string> = {
-    white: 'Color.White',
-    black: 'Color.Black',
-    red: 'Color.Red',
-    blue: 'Color.Blue',
-    green: 'Color.Green',
-    transparent: 'Color.Transparent',
-    gray: 'Color.Gray',
-    yellow: 'Color.Yellow',
-    cyan: 'Color.Cyan',
-    magenta: 'Color.Magenta',
-    lightgray: 'Color.LightGray',
-    darkgray: 'Color.DarkGray',
-    darkgrey: 'Color.DarkGray',
-    lightgrey: 'Color.LightGray',
-    grey: 'Color.Gray',
-  }
-
-  return map[color.toLowerCase()] || 'Color.Black'
+  return 'Color.Black'
 }
 
 export function generateComposeCode(style: Record<string, string>): string {
