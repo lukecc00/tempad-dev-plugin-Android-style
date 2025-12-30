@@ -27,7 +27,8 @@ export default definePlugin({
       title: 'Android XML',
       lang: 'xml' as any,
       transform({ style }) {
-        return generateAndroidTag(style)
+        const code = generateAndroidTag(style)
+        return `<!-- \n  Tip: Select a 'Component' or 'Instance' to view the full nested tree structure.\n  Currently viewing style for a single node.\n-->\n${code}`
       },
       transformComponent({ component }) {
         return generateXmlComponent(component)
@@ -38,7 +39,8 @@ export default definePlugin({
       title: 'Jetpack Compose',
       lang: 'kotlin' as any,
       transform({ style }) {
-        return generateComposeCode(style)
+        const code = generateComposeCode(style)
+        return `/* \n  提示：请选中一个 Component 或 Instance 以生成完整的嵌套结构代码。\n  当前仅展示选中节点的样式代码。\n*/\n${code}`
       },
       transformComponent({ component }) {
         return generateComposeComponent(component)

@@ -46,6 +46,16 @@ function isLayout(node: DesignNode): 'VERTICAL' | 'HORIZONTAL' | 'NONE' {
   return figmaNode.layoutMode || 'NONE'
 }
 
+function getDebugInfo(node: DesignNode): string {
+  const keys = Object.keys(node).join(', ')
+  return `<!-- Debug Info: Type=${node.type}, Name=${node.name}, Keys=[${keys}] -->`
+}
+
+function getComposeDebugInfo(node: DesignNode): string {
+  const keys = Object.keys(node).join(', ')
+  return `// Debug Info: Type=${node.type}, Name=${node.name}, Keys=[${keys}]`
+}
+
 // --- Android XML Generation ---
 
 function generateXmlNode(node: DesignNode, indentLevel: number = 0): string {
@@ -61,7 +71,7 @@ ${indent}  android:layout_height="wrap_content"
 ${indent}/>`
   }
 
-  if (['FRAME', 'GROUP', 'INSTANCE'].includes(node.type)) {
+  if (['FRAME', 'GROUP', 'INSTANCE', 'COMPONENT'].includes(node.type)) {
     const container = node as any // Type casting to access children
     const layoutMode = isLayout(node)
 
@@ -78,13 +88,6 @@ ${indent}/>`
       attrs += `\n${indent}  android:orientation="horizontal"`
     }
 
-    // Component Instance override
-    if (node.type === 'INSTANCE') {
-      // If it's an instance, we could use <include> BUT usually we want to see content
-      // unless it's strictly component-based generation.
-      // Let's keep it as a container with comment.
-    }
-
     // Background
     const bg = getBackgroundColor(node)
     if (bg) {
@@ -99,7 +102,7 @@ ${indent}/>`
 ${indent}  android:layout_width="match_parent"
 ${indent}  android:layout_height="match_parent"${attrs}>`
 
-    if (node.type === 'INSTANCE') {
+    if (node.type === 'INSTANCE' || node.type === 'COMPONENT') {
       openTag = `<!-- Component: ${node.name} -->\n${indent}<${safeTagName}
 ${indent}  android:layout_width="wrap_content"
 ${indent}  android:layout_height="wrap_content"${attrs}>`
@@ -120,7 +123,8 @@ ${indent}</${safeTagName}>`
 }
 
 export function generateXmlComponent(component: DesignComponent): string {
-  return generateXmlNode(component, 0)
+  const debug = getDebugInfo(component)
+  return `${debug}\n${generateXmlNode(component, 0)}`
 }
 
 // --- Jetpack Compose Generation ---
@@ -133,7 +137,7 @@ function generateComposeNode(node: DesignNode, indentLevel: number = 0): string 
     return `${indent}Text(text = "${textNode.characters}")`
   }
 
-  if (['FRAME', 'GROUP', 'INSTANCE'].includes(node.type)) {
+  if (['FRAME', 'GROUP', 'INSTANCE', 'COMPONENT'].includes(node.type)) {
     const container = node as any
     const layoutMode = isLayout(node)
 
@@ -150,12 +154,7 @@ function generateComposeNode(node: DesignNode, indentLevel: number = 0): string 
       const name = sanitizeName(node.name)
       if (name)
         composableName = name
-      // If it's a custom component, we assume it handles its own layout/bg
-      // But if we are generating the *definition* of that component, we recursively go in.
-      // If we are *using* it, we just call it.
-      // Current logic recursively generates children, so we are "inlining" the component structure.
-      // To be "Robust", we should probably default to standard containers unless it's a leaf.
-      // Let's stick to standard containers for structure visualization.
+      
       if (layoutMode === 'VERTICAL')
         composableName = 'Column'
       else if (layoutMode === 'HORIZONTAL')
@@ -203,7 +202,9 @@ ${indent}}`
 }
 
 export function generateComposeComponent(component: DesignComponent): string {
-  return `@Composable
+  const debug = getComposeDebugInfo(component)
+  return `${debug}
+@Composable
 fun ${sanitizeName(component.name) || 'MyComponent'}() {
 ${generateComposeNode(component, 1)}
 }`
