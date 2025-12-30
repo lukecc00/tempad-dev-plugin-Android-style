@@ -1,4 +1,5 @@
 import { definePlugin } from '@tempad-dev/plugins'
+import { generateComposeComponent, generateXmlComponent } from './component'
 import { generateComposeCode } from './compose'
 import {
   generateAndroidTag,
@@ -28,6 +29,9 @@ export default definePlugin({
       transform({ style }) {
         return generateAndroidTag(style)
       },
+      transformComponent({ component }) {
+        return generateXmlComponent(component)
+      },
     },
     // Android Compose 输出
     'android-compose': {
@@ -35,6 +39,9 @@ export default definePlugin({
       lang: 'kotlin' as any,
       transform({ style }) {
         return generateComposeCode(style)
+      },
+      transformComponent({ component }) {
+        return generateComposeComponent(component)
       },
     },
     // 原始 CSS 代码输出

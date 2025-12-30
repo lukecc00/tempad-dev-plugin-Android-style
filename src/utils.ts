@@ -59,6 +59,65 @@ export function parseBoxModel(property: string, value: string): Record<string, s
   return result
 }
 
+export function convertColorToHex(color: string): string {
+  if (!color) return ''
+
+  if (color.startsWith('#')) {
+    let hex = color.substring(1)
+    if (hex.length === 3) {
+      hex = hex.split('').map(c => c + c).join('')
+    }
+    if (hex.length === 4) {
+      hex = hex.split('').map(c => c + c).join('')
+    }
+    // XML expects #AARRGGBB or #RRGGBB
+    // If we have 8 chars from CSS (RRGGBBAA), we need to swap to AARRGGBB?
+    // Actually Android uses #AARRGGBB. CSS uses #RRGGBBAA.
+    if (hex.length === 8) {
+      const r = hex.substring(0, 2)
+      const g = hex.substring(2, 4)
+      const b = hex.substring(4, 6)
+      const a = hex.substring(6, 8)
+      return `#${a}${r}${g}${b}`.toUpperCase()
+    }
+    return color.toUpperCase()
+  }
+
+  if (color.startsWith('rgb')) {
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
+    if (match) {
+      const r = Number.parseInt(match[1])
+      const g = Number.parseInt(match[2])
+      const b = Number.parseInt(match[3])
+      const a = match[4] ? Number.parseFloat(match[4]) : 1.0
+      const alphaInt = Math.round(a * 255)
+      const toHex = (n: number): string => n.toString(16).padStart(2, '0').toUpperCase()
+      
+      if (alphaInt === 255) {
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+      }
+      return `#${toHex(alphaInt)}${toHex(r)}${toHex(g)}${toHex(b)}`
+    }
+  }
+
+  const map: Record<string, string> = {
+    white: '#FFFFFF',
+    black: '#000000',
+    red: '#FF0000',
+    blue: '#0000FF',
+    green: '#008000',
+    transparent: '#00000000',
+    gray: '#808080',
+    yellow: '#FFFF00',
+    cyan: '#00FFFF',
+    magenta: '#FF00FF',
+    lightgray: '#D3D3D3',
+    darkgray: '#A9A9A9',
+  }
+
+  return map[color.toLowerCase()] || '#000000'
+}
+
 // Map of Android attributes
 type AndroidAttributes = Record<string, string>
 
@@ -146,7 +205,7 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   const bgProp = isCard ? 'app:cardBackgroundColor' : 'android:background'
 
   if (style['background-color']) {
-    attrs[bgProp] = style['background-color']
+    attrs[bgProp] = convertColorToHex(style['background-color'])
   }
   else if (style.background && style.background.startsWith('var(')) {
     const match = style.background.match(/var\(--([\w-]+)\)/)
@@ -161,7 +220,7 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   // 3. Text (Only for TextView)
   if (tagName === 'TextView') {
     if (style.color)
-      attrs['android:textColor'] = style.color
+      attrs['android:textColor'] = convertColorToHex(style.color)
     if (style['font-size'])
       attrs['android:textSize'] = convertUnit(style['font-size'], 'sp')
 

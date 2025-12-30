@@ -6,9 +6,10 @@ import type {
 } from '@tempad-dev/plugins'
 
 import { convertColor } from './compose'
+import { convertColorToHex } from './utils'
 
 // Extended interface for Figma-like properties
-interface FigmaNode extends DesignNode {
+type FigmaNode = DesignNode & {
   layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL'
   primaryAxisAlignItems?: 'MIN' | 'MAX' | 'CENTER' | 'SPACE_BETWEEN'
   counterAxisAlignItems?: 'MIN' | 'MAX' | 'CENTER' | 'BASELINE'
@@ -87,14 +88,7 @@ ${indent}/>`
     // Background
     const bg = getBackgroundColor(node)
     if (bg) {
-      // Convert to Android Color
-      // We reuse cssToAndroidAttrs logic implicitly or just inject it
-      // Since we don't have full CSS here, we assume hex/rgba string
-      // But xml needs hex/drawable.
-      // Let's just output raw for now or try to convert if we can.
-      // convertColor is for Compose. XML needs #AARRGGBB.
-      // Let's assume it's valid hex.
-      attrs += `\n${indent}  android:background="${bg}"`
+      attrs += `\n${indent}  android:background="${convertColorToHex(bg)}"`
     }
 
     const childrenXml = (container.children || [])
