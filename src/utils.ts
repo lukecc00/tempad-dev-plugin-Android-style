@@ -60,62 +60,134 @@ export function parseBoxModel(property: string, value: string): Record<string, s
 }
 
 export function convertColorToHex(color: string): string {
-  if (!color) return ''
+  if (!color)
+    return ''
+
+  // Pre-process hex shorthand and normalization
+  let hex = ''
+  let alpha = 'FF'
 
   if (color.startsWith('#')) {
-    let hex = color.substring(1)
-    if (hex.length === 3) {
-      hex = hex.split('').map(c => c + c).join('')
+    const raw = color.substring(1)
+    if (raw.length === 3) {
+      hex = raw.split('').map(c => c + c).join('').toUpperCase()
     }
-    if (hex.length === 4) {
-      hex = hex.split('').map(c => c + c).join('')
+    else if (raw.length === 4) {
+      // #RGBA -> #RRGGBBAA
+      const full = raw.split('').map(c => c + c).join('').toUpperCase()
+      // CSS: RRGGBBAA
+      hex = full.substring(0, 6)
+      alpha = full.substring(6, 8)
     }
-    // XML expects #AARRGGBB or #RRGGBB
-    // If we have 8 chars from CSS (RRGGBBAA), we need to swap to AARRGGBB?
-    // Actually Android uses #AARRGGBB. CSS uses #RRGGBBAA.
-    if (hex.length === 8) {
-      const r = hex.substring(0, 2)
-      const g = hex.substring(2, 4)
-      const b = hex.substring(4, 6)
-      const a = hex.substring(6, 8)
-      return `#${a}${r}${g}${b}`.toUpperCase()
+    else if (raw.length === 6) {
+      hex = raw.toUpperCase()
     }
-    return color.toUpperCase()
+    else if (raw.length === 8) {
+      // CSS: RRGGBBAA -> Android: AARRGGBB
+      // But for color map lookup we need #AARRGGBB format usually
+      // Android colors.xml usually stores #AARRGGBB
+      const r = raw.substring(0, 2)
+      const g = raw.substring(2, 4)
+      const b = raw.substring(4, 6)
+      const a = raw.substring(6, 8)
+      hex = (r + g + b).toUpperCase()
+      alpha = a.toUpperCase()
+    }
   }
-
-  if (color.startsWith('rgb')) {
+  else if (color.startsWith('rgb')) {
     const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
     if (match) {
-      const r = Number.parseInt(match[1])
-      const g = Number.parseInt(match[2])
-      const b = Number.parseInt(match[3])
-      const a = match[4] ? Number.parseFloat(match[4]) : 1.0
-      const alphaInt = Math.round(a * 255)
-      const toHex = (n: number): string => n.toString(16).padStart(2, '0').toUpperCase()
-      
-      if (alphaInt === 255) {
-        return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+      const r = Number.parseInt(match[1]).toString(16).padStart(2, '0').toUpperCase()
+      const g = Number.parseInt(match[2]).toString(16).padStart(2, '0').toUpperCase()
+      const b = Number.parseInt(match[3]).toString(16).padStart(2, '0').toUpperCase()
+      hex = r + g + b
+      if (match[4]) {
+        alpha = Math.round(Number.parseFloat(match[4]) * 255).toString(16).padStart(2, '0').toUpperCase()
       }
-      return `#${toHex(alphaInt)}${toHex(r)}${toHex(g)}${toHex(b)}`
     }
   }
-
-  const map: Record<string, string> = {
-    white: '#FFFFFF',
-    black: '#000000',
-    red: '#FF0000',
-    blue: '#0000FF',
-    green: '#008000',
-    transparent: '#00000000',
-    gray: '#808080',
-    yellow: '#FFFF00',
-    cyan: '#00FFFF',
-    magenta: '#FF00FF',
-    lightgray: '#D3D3D3',
-    darkgray: '#A9A9A9',
+  else {
+    // Named colors map
+    const map: Record<string, string> = {
+      white: '#FFFFFF',
+      black: '#000000',
+      red: '#FF0000',
+      blue: '#0000FF',
+      green: '#008000',
+      transparent: '#00000000',
+      // ... (add more if needed)
+    }
+    const mapped = map[color.toLowerCase()]
+    if (mapped) return convertColorToHex(mapped)
+    return '#000000' // Default fallback
   }
 
-  return map[color.toLowerCase()] || '#000000'
+  // Construct Android Hex: #AARRGGBB
+  const androidHex = `#${alpha}${hex}`
+
+  // Try to find in color map (assets/colors.xml)
+  // Since we can't read file in browser environment, we hardcode the map or inject it.
+  // For this environment, I will embed the map derived from the file content you provided.
+  const colorResource = findColorResource(androidHex)
+  if (colorResource) {
+    return `@color/${colorResource}`
+  }
+
+  return androidHex
+}
+
+// Embedded Color Map from assets/colors.xml
+// Key: #AARRGGBB (uppercase), Value: resource name
+const COLOR_MAP: Record<string, string> = {
+  '#FFFF5F00': 'color_orange_brand',
+  '#1AFF5F00': 'color_orange_brand_10',
+  '#FF000000': 'color_black_100',
+  '#CC000000': 'color_black_80',
+  '#B3000000': 'color_black_70',
+  '#99000000': 'color_black_60',
+  '#80000000': 'color_black_50',
+  '#66000000': 'color_black_40',
+  '#4D000000': 'color_black_30',
+  '#33000000': 'color_black_20',
+  '#1A000000': 'color_black_10',
+  '#14000000': 'color_black_8',
+  '#0F000000': 'color_black_6',
+  '#0A000000': 'color_black_4',
+  '#08000000': 'color_black_3',
+  '#00000000': 'color_black_0',
+  '#FFFFFFFF': 'color_white_100',
+  '#E6FFFFFF': 'color_white_90',
+  '#CCFFFFFF': 'color_white_80',
+  '#D9FFFFFF': 'color_white_85',
+  '#99FFFFFF': 'color_white_60',
+  '#66FFFFFF': 'color_white_40',
+  '#80FFFFFF': 'color_white_50',
+  '#4DFFFFFF': 'color_white_30',
+  '#33FFFFFF': 'color_white_20',
+  '#1AFFFFFF': 'color_white_10',
+  '#14FFFFFF': 'color_white_8',
+  '#08FFFFFF': 'color_white_3',
+  '#0AFFFFFF': 'color_white_4',
+  '#00FFFFFF': 'color_white_0',
+  '#FFF5F5F5': 'bg_f5f5f5',
+  '#E6000000': 'bg_black_90',
+  '#FF141414': 'bg_141414',
+  '#E6141414': 'bg_141414_90',
+  '#FF527EB0': 'color_link',
+  '#FFCE9B52': 'color_ce9b52',
+  '#FF333333': 'bg_seek_hint_black_v525',
+  '#FF999999': 'color_999999',
+  '#FFCCCCCC': 'color_CCCCCC',
+  '#FF1A1A1A': 'color_1A1A1A',
+  '#FFFA6725': 'color_FA6725',
+  '#FFFA6726': 'color_FA6726',
+}
+
+function findColorResource(hex: string): string | null {
+  // Direct match
+  if (COLOR_MAP[hex]) return COLOR_MAP[hex]
+
+  return null
 }
 
 // Map of Android attributes
@@ -150,7 +222,7 @@ function detectTagName(style: Record<string, string>): string {
   const hasDim = style.width || style.height
   const hasBg = style.background || style['background-color']
   const isContainer = style.padding || style.display
-  
+
   // Prefer FrameLayout for generic containers (Figma Frames)
   if (hasDim || hasBg || isContainer)
     return 'FrameLayout'
@@ -204,9 +276,9 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   // CardView uses cardBackgroundColor instead of background
   const isCard = tagName.includes('CardView')
   const bgProp = isCard ? 'app:cardBackgroundColor' : 'android:background'
-  
+
   let hasSetBackground = false
-  
+
   // Prioritize simple background color
   if (style['background-color']) {
     attrs[bgProp] = convertColorToHex(style['background-color'])
@@ -214,16 +286,17 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   }
   // Check for background property if background-color is missing
   else if (style.background) {
-     if (style.background.startsWith('#') || style.background.startsWith('rgb')) {
-         attrs[bgProp] = convertColorToHex(style.background)
-         hasSetBackground = true
-     } else if (style.background.startsWith('var(')) {
-        const match = style.background.match(/var\(--([\w-]+)\)/)
-        if (match) {
-          attrs[bgProp] = `@drawable/${match[1]}`
-          hasSetBackground = true
-        }
-     }
+    if (style.background.startsWith('#') || style.background.startsWith('rgb')) {
+      attrs[bgProp] = convertColorToHex(style.background)
+      hasSetBackground = true
+    }
+    else if (style.background.startsWith('var(')) {
+      const match = style.background.match(/var\(--([\w-]+)\)/)
+      if (match) {
+        attrs[bgProp] = `@drawable/${match[1]}`
+        hasSetBackground = true
+      }
+    }
   }
 
   // 3. Text (Only for TextView)
@@ -300,7 +373,7 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
       // For regular views, radius usually implies a shape drawable or outline clipping
       attrs['android:clipToOutline'] = 'true'
       // Only default to generic bg_rounded if NO background color was found.
-      // If we have a color (e.g. #FFF), we keep it. 
+      // If we have a color (e.g. #FFF), we keep it.
       // Note: android:background="#FFF" with clipToOutline="true" works on API 21+ for Outline clipping.
       if (!hasSetBackground) {
         attrs['android:background'] = '@drawable/bg_rounded'
