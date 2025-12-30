@@ -2,6 +2,7 @@ import { definePlugin } from '@tempad-dev/plugins'
 import {
   generateAndroidTag,
 } from './utils'
+import { generateComposeCode } from './compose'
 
 export default definePlugin({
   name: 'android-xml-style',
@@ -23,9 +24,17 @@ export default definePlugin({
     // Android XML 输出
     'android-xml': {
       title: 'Android XML',
-      lang: 'xml',
+      lang: 'xml' as any,
       transform({ style }) {
         return generateAndroidTag(style)
+      },
+    },
+    // Android Compose 输出
+    'android-compose': {
+      title: 'Jetpack Compose',
+      lang: 'kotlin' as any,
+      transform({ style }) {
+        return generateComposeCode(style)
       },
     },
     // 原始 CSS 代码输出
