@@ -265,9 +265,39 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
     if (style['font-size'])
       attrs['android:textSize'] = convertUnit(style['font-size'], 'sp')
 
-    if (style['font-weight']) {
-      if (style['font-weight'] === 'bold' || Number.parseInt(style['font-weight']) >= 700) {
-        attrs['android:textStyle'] = 'bold'
+    // Font Style & Weight
+    const isBold = style['font-weight'] === 'bold' || Number.parseInt(style['font-weight']) >= 700
+    const isItalic = style['font-style'] === 'italic'
+
+    if (isBold && isItalic) {
+      attrs['android:textStyle'] = 'bold|italic'
+    }
+    else if (isBold) {
+      attrs['android:textStyle'] = 'bold'
+    }
+    else if (isItalic) {
+      attrs['android:textStyle'] = 'italic'
+    }
+
+    // Text Caps
+    if (style['text-transform'] === 'uppercase') {
+      attrs['android:textAllCaps'] = 'true'
+    }
+
+    // Letter Spacing (Android uses em units by default)
+    if (style['letter-spacing']) {
+      const ls = style['letter-spacing']
+      if (ls.endsWith('em')) {
+        attrs['android:letterSpacing'] = ls.replace('em', '')
+      }
+      else if (ls.endsWith('px') && style['font-size'] && style['font-size'].endsWith('px')) {
+        // Convert px to em approx
+        const lsPx = Number.parseFloat(ls)
+        const fsPx = Number.parseFloat(style['font-size'])
+        if (fsPx > 0) {
+          const em = (lsPx / fsPx).toFixed(2)
+          attrs['android:letterSpacing'] = em
+        }
       }
     }
 
@@ -283,6 +313,29 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
       if (gravity) {
         attrs['android:gravity'] = gravity
       }
+    }
+
+    // Text Shadow
+    if (style['text-shadow'] && style['text-shadow'] !== 'none') {
+      // 2px 2px 4px #000
+      const match = style['text-shadow'].match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(.+)/)
+      if (match) {
+        attrs['android:shadowDx'] = match[1]
+        attrs['android:shadowDy'] = match[2]
+        attrs['android:shadowRadius'] = match[3]
+        attrs['android:shadowColor'] = convertColorToHex(match[4])
+      }
+    }
+
+    // Font Family
+    if (style['font-family']) {
+      const ff = style['font-family'].toLowerCase()
+      if (ff.includes('monospace'))
+        attrs['android:typeface'] = 'monospace'
+      else if (ff.includes('serif') && !ff.includes('sans-serif'))
+        attrs['android:typeface'] = 'serif'
+      else if (ff.includes('sans-serif'))
+        attrs['android:typeface'] = 'sans'
     }
 
     // Line Height

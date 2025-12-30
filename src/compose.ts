@@ -96,6 +96,7 @@ export function generateComposeCode(style: Record<string, string>): string {
   const composableName = detectComposableName(style)
   const modifiers: string[] = []
   const params: string[] = []
+  const indent = '    '
 
   // 1. Size
   if (style.width) {
@@ -211,19 +212,73 @@ export function generateComposeCode(style: Record<string, string>): string {
       params.push(`fontSize = ${convertComposeUnit(style['font-size'], 'sp')}`)
     if (style['line-height'])
       params.push(`lineHeight = ${convertComposeUnit(style['line-height'], 'sp')}`)
-    if (style['letter-spacing'])
-      params.push(`letterSpacing = ${convertComposeUnit(style['letter-spacing'], 'sp')}`)
+    if (style['letter-spacing']) {
+      const ls = style['letter-spacing']
+      if (ls.endsWith('em')) {
+        params.push(`letterSpacing = ${ls.replace('em', '.em')}`)
+      } else {
+        params.push(`letterSpacing = ${convertComposeUnit(ls, 'sp')}`)
+      }
+    }
 
     if (style['font-weight']) {
       const fw = style['font-weight']
-      if (fw === 'bold' || Number.parseInt(fw) >= 700) {
+      const fwNum = Number.parseInt(fw)
+      if (fw === 'bold' || fwNum >= 700) {
         params.push(`fontWeight = FontWeight.Bold`)
       }
-      else if (Number.parseInt(fw) < 400) {
+      else if (fwNum === 100) {
+        params.push(`fontWeight = FontWeight.Thin`)
+      }
+      else if (fwNum === 200) {
+        params.push(`fontWeight = FontWeight.ExtraLight`)
+      }
+      else if (fwNum === 300 || fwNum < 400) {
         params.push(`fontWeight = FontWeight.Light`)
       }
-      else if (Number.parseInt(fw) === 500) {
+      else if (fwNum === 400 || fw === 'normal') {
+        params.push(`fontWeight = FontWeight.Normal`)
+      }
+      else if (fwNum === 500) {
         params.push(`fontWeight = FontWeight.Medium`)
+      }
+      else if (fwNum === 600) {
+        params.push(`fontWeight = FontWeight.SemiBold`)
+      }
+      else if (fwNum === 800) {
+        params.push(`fontWeight = FontWeight.ExtraBold`)
+      }
+      else if (fwNum === 900) {
+        params.push(`fontWeight = FontWeight.Black`)
+      }
+    }
+
+    if (style['font-family']) {
+      const ff = style['font-family'].toLowerCase()
+      if (ff.includes('monospace'))
+        params.push(`fontFamily = FontFamily.Monospace`)
+      else if (ff.includes('serif') && !ff.includes('sans-serif'))
+        params.push(`fontFamily = FontFamily.Serif`)
+      else if (ff.includes('sans-serif'))
+        params.push(`fontFamily = FontFamily.SansSerif`)
+    }
+
+    if (style['font-style'] === 'italic') {
+      params.push(`fontStyle = FontStyle.Italic`)
+    }
+
+    if (style['text-decoration']) {
+      const td = style['text-decoration']
+      const hasUnderline = td.includes('underline')
+      const hasLineThrough = td.includes('line-through')
+      if (hasUnderline && hasLineThrough) {
+        params.push(`textDecoration = TextDecoration.combine(\n${indent}${indent}listOf(TextDecoration.Underline, TextDecoration.LineThrough)\n${indent})`)
+      }
+      else if (hasUnderline) {
+        params.push(`textDecoration = TextDecoration.Underline`)
+      }
+      else if (hasLineThrough) {
+        params.push(`textDecoration = TextDecoration.LineThrough`)
       }
     }
 
@@ -241,6 +296,18 @@ export function generateComposeCode(style: Record<string, string>): string {
       params.push(`overflow = TextOverflow.Ellipsis`)
       if (style['white-space'] === 'nowrap') {
         params.push(`maxLines = 1`)
+      }
+    }
+
+    // Text Shadow
+    if (style['text-shadow'] && style['text-shadow'] !== 'none') {
+      const match = style['text-shadow'].match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(.+)/)
+      if (match) {
+        const dx = match[1]
+        const dy = match[2]
+        const radius = match[3]
+        const color = convertColor(match[4])
+        params.push(`style = TextStyle(\n${indent}${indent}shadow = Shadow(\n${indent}${indent}${indent}color = ${color},\n${indent}${indent}${indent}offset = Offset(${dx}f, ${dy}f),\n${indent}${indent}${indent}blurRadius = ${radius}f\n${indent}${indent})\n${indent})`)
       }
     }
   }
@@ -299,7 +366,6 @@ export function generateComposeCode(style: Record<string, string>): string {
   const paramsStr = params.join(',\n    ')
 
   const isContainer = ['Box', 'Column', 'Row', 'Card'].includes(composableName)
-  const indent = '    '
 
   let code = ''
   if (isContainer) {
