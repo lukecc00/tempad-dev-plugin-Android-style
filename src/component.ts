@@ -114,8 +114,14 @@ ${indent}  android:layout_width="wrap_content"
 ${indent}  android:layout_height="wrap_content"${attrs}>`
     }
 
+    // Hint for empty children
+    let innerContent = childrenXml
+    if (!innerContent.trim()) {
+      innerContent = `${indent}<!-- No children detected. If this is a Frame, please convert it to a Component to expose its structure. -->`
+    }
+
     return `${indent}${openTag}
-${childrenXml}
+${innerContent}
 ${indent}</${safeTagName}>`
   }
 
@@ -177,20 +183,27 @@ function generateComposeNode(node: DesignNode, indentLevel: number = 0): string 
       params = `modifier = Modifier${modifiers}`
     }
 
-    // If it has children, add a block
-    if (childrenCode.trim()) {
+    // Hint for empty children
+    let innerContent = childrenCode
+    if (!innerContent.trim()) {
+      innerContent = `${indent}// No children detected. If this is a Frame, please convert it to a Component to expose its structure.`
+    }
+
+    // If it has children (or hint), add a block
+    if (innerContent.trim()) {
       if (params) {
         return `${indent}${composableName}(\n${indent}    ${params}\n${indent}) {
-${childrenCode}
+${innerContent}
 ${indent}}`
       }
       else {
         return `${indent}${composableName} {
-${childrenCode}
+${innerContent}
 ${indent}}`
       }
     }
     else {
+      // Should not happen given the hint logic above
       if (params) {
         return `${indent}${composableName}(${params})`
       }
@@ -198,7 +211,7 @@ ${indent}}`
     }
   }
 
-  return `${indent}// Unknown Node: ${node.type}`
+  return `${indent}// Unknown Node: ${node.type} -->`
 }
 
 export function generateComposeComponent(component: DesignComponent): string {

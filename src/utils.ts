@@ -146,13 +146,14 @@ function detectTagName(style: Record<string, string>): string {
   if (style['font-family'] || style.color || style['font-size'] || style['text-align'] || style['line-height'] || style['text-overflow'])
     return 'TextView'
 
-  // 6. View (Simple shape)
-  // If it has dimensions and background but no layout/text props, it's likely a View
+  // 6. Generic Box (FrameLayout/RelativeLayout/View)
   const hasDim = style.width || style.height
   const hasBg = style.background || style['background-color']
   const isContainer = style.padding || style.display
-  if (hasDim && hasBg && !isContainer)
-    return 'View'
+  
+  // Prefer FrameLayout for generic containers (Figma Frames)
+  if (hasDim || hasBg || isContainer)
+    return 'FrameLayout'
 
   // Default container
   return 'RelativeLayout'
@@ -203,18 +204,26 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   // CardView uses cardBackgroundColor instead of background
   const isCard = tagName.includes('CardView')
   const bgProp = isCard ? 'app:cardBackgroundColor' : 'android:background'
-
+  
+  let hasSetBackground = false
+  
+  // Prioritize simple background color
   if (style['background-color']) {
     attrs[bgProp] = convertColorToHex(style['background-color'])
+    hasSetBackground = true
   }
-  else if (style.background && style.background.startsWith('var(')) {
-    const match = style.background.match(/var\(--([\w-]+)\)/)
-    if (match) {
-      attrs[bgProp] = `@drawable/${match[1]}`
-    }
-    else {
-      attrs[bgProp] = '@drawable/bg_placeholder'
-    }
+  // Check for background property if background-color is missing
+  else if (style.background) {
+     if (style.background.startsWith('#') || style.background.startsWith('rgb')) {
+         attrs[bgProp] = convertColorToHex(style.background)
+         hasSetBackground = true
+     } else if (style.background.startsWith('var(')) {
+        const match = style.background.match(/var\(--([\w-]+)\)/)
+        if (match) {
+          attrs[bgProp] = `@drawable/${match[1]}`
+          hasSetBackground = true
+        }
+     }
   }
 
   // 3. Text (Only for TextView)
@@ -290,7 +299,10 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
     else {
       // For regular views, radius usually implies a shape drawable or outline clipping
       attrs['android:clipToOutline'] = 'true'
-      if (!attrs['android:background']) {
+      // Only default to generic bg_rounded if NO background color was found.
+      // If we have a color (e.g. #FFF), we keep it. 
+      // Note: android:background="#FFF" with clipToOutline="true" works on API 21+ for Outline clipping.
+      if (!hasSetBackground) {
         attrs['android:background'] = '@drawable/bg_rounded'
       }
     }
@@ -357,6 +369,28 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
     }
   }
 
+  // 10. Positioning (Absolute)
+  // Check for explicit top/left/right/bottom in style (passed by tempad for absolute pos)
+  if (style.position === 'absolute' || style.top || style.left || style.right || style.bottom) {
+     if (style.top) attrs['android:layout_marginTop'] = convertUnit(style.top, 'dp')
+     if (style.left) attrs['android:layout_marginStart'] = convertUnit(style.left, 'dp')
+     if (style.right) attrs['android:layout_marginEnd'] = convertUnit(style.right, 'dp')
+     if (style.bottom) attrs['android:layout_marginBottom'] = convertUnit(style.bottom, 'dp')
+     
+     // Alignment
+     // If user has 'left' and 'right' unset, maybe alignParentStart? 
+     // Usually absolute means alignParentTop + alignParentStart + margins
+     if (style.top) attrs['android:layout_alignParentTop'] = 'true'
+     if (style.left) attrs['android:layout_alignParentStart'] = 'true'
+     if (style.right) attrs['android:layout_alignParentEnd'] = 'true'
+     if (style.bottom) attrs['android:layout_alignParentBottom'] = 'true'
+     
+     // Center Horizontal/Vertical
+     // If we detect `left: 50%` and `transform: translate(-50%)` it's centering, 
+     // but tempad usually gives calculated pixels.
+     // Let's rely on simple margins for now unless we see explicit center flags.
+  }
+
   return attrs
 }
 
@@ -377,7 +411,7 @@ export function generateAndroidTag(style: Record<string, string>): string {
     }
   }
   else {
-    attrs['android:id'] = `@+id/view_${Math.floor(Math.random() * 10000)}`
+    attrs['android:id'] = `@+id/frame_${Math.floor(Math.random() * 10000)}`
     attrs['xmlns:android'] = 'http://schemas.android.com/apk/res/android'
     if (tagName.includes('CardView')) {
       attrs['xmlns:app'] = 'http://schemas.android.com/apk/res-auto'

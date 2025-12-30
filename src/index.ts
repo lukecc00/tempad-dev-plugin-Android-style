@@ -22,34 +22,24 @@ export default definePlugin({
         return ''
       },
     },
-    // Android XML Style (Single Node)
+    // Android XML 输出
     'android-xml': {
-      title: 'Android XML (Style)',
+      title: 'Android XML',
       lang: 'xml' as any,
       transform({ style }) {
         return generateAndroidTag(style)
       },
-    },
-    // Android XML Tree (Component/Instance)
-    'android-xml-tree': {
-      title: 'Android XML (Component)',
-      lang: 'xml' as any,
       transformComponent({ component }) {
         return generateXmlComponent(component)
       },
     },
-    // Android Compose Style (Single Node)
+    // Android Compose 输出
     'android-compose': {
-      title: 'Jetpack Compose (Style)',
+      title: 'Jetpack Compose',
       lang: 'kotlin' as any,
       transform({ style }) {
         return generateComposeCode(style)
       },
-    },
-    // Android Compose Tree (Component/Instance)
-    'android-compose-tree': {
-      title: 'Jetpack Compose (Component)',
-      lang: 'kotlin' as any,
       transformComponent({ component }) {
         return generateComposeComponent(component)
       },
