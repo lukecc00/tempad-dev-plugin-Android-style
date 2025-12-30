@@ -340,16 +340,43 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
 
     // Line Height
     if (style['line-height']) {
-      const lhMatch = style['line-height'].match(/^(-?[\d.]+)px$/)
-      const fsMatch = style['font-size']?.match(/^(-?[\d.]+)px$/)
+      let lh = 0
+      const lhStr = style['line-height']
 
-      if (lhMatch && fsMatch) {
-        const lh = Number.parseFloat(lhMatch[1])
-        const fs = Number.parseFloat(fsMatch[1])
-        const extra = lh - fs
-        if (extra > 0) {
-          attrs['android:lineSpacingExtra'] = `${extra}sp`
-          attrs['android:translationY'] = `-${extra / 2}sp`
+      // Check if pixel value
+      const lhMatch = lhStr.match(/^(-?[\d.]+)px$/)
+      if (lhMatch) {
+        lh = Number.parseFloat(lhMatch[1])
+      }
+      else if (!Number.isNaN(Number.parseFloat(lhStr)) && !lhStr.includes('%') && !lhStr.includes('em')) {
+        // Multiplier (e.g., 1.5)
+        const multiplier = Number.parseFloat(lhStr)
+        const fsMatch = style['font-size']?.match(/^(-?[\d.]+)px$/)
+        if (fsMatch) {
+          const fs = Number.parseFloat(fsMatch[1])
+          lh = fs * multiplier
+        }
+      }
+
+      if (lh > 0) {
+        // API 28+ supports lineHeight directly, but lineSpacingExtra is safer for older versions
+        // To accurately emulate line-height in Android TextView, we need to know the font metrics which we don't have.
+        // But commonly, lineSpacingExtra = lineHeight - fontSize
+        const fsMatch = style['font-size']?.match(/^(-?[\d.]+)px$/)
+        if (fsMatch) {
+          const fs = Number.parseFloat(fsMatch[1])
+          const extra = lh - fs
+          // Only apply if extra spacing is needed
+          if (extra > 0) {
+            attrs['android:lineSpacingExtra'] = `${extra.toFixed(0)}sp`
+            // Sometimes designers want "center" line height, so we shift Y
+            // But this is hacky. Let's stick to lineSpacingExtra.
+            // attrs['android:translationY'] = `-${(extra / 2).toFixed(0)}sp`
+          }
+        }
+        else {
+          // Fallback to explicit lineHeight (API 28+)
+          attrs['android:lineHeight'] = `${lh.toFixed(0)}sp`
         }
       }
     }

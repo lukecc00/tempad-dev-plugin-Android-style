@@ -210,13 +210,25 @@ export function generateComposeCode(style: Record<string, string>): string {
       params.push(`color = ${convertColor(style.color)}`)
     if (style['font-size'])
       params.push(`fontSize = ${convertComposeUnit(style['font-size'], 'sp')}`)
-    if (style['line-height'])
-      params.push(`lineHeight = ${convertComposeUnit(style['line-height'], 'sp')}`)
+    if (style['line-height']) {
+      const lh = style['line-height']
+      if (lh.endsWith('px')) {
+        params.push(`lineHeight = ${convertComposeUnit(lh, 'sp')}`)
+      }
+      else if (lh.endsWith('em')) {
+        params.push(`lineHeight = ${lh.replace('em', '.em')}`)
+      }
+      else if (!Number.isNaN(Number.parseFloat(lh))) {
+        // Unitless -> em
+        params.push(`lineHeight = ${lh}.em`)
+      }
+    }
     if (style['letter-spacing']) {
       const ls = style['letter-spacing']
       if (ls.endsWith('em')) {
         params.push(`letterSpacing = ${ls.replace('em', '.em')}`)
-      } else {
+      }
+      else {
         params.push(`letterSpacing = ${convertComposeUnit(ls, 'sp')}`)
       }
     }

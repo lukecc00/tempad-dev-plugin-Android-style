@@ -11,20 +11,6 @@ import {
 export default definePlugin({
   name: 'android-xml-style',
   code: {
-    'css': {
-      title: 'delete-CSS',
-      lang: 'css',
-      transform() {
-        return ''
-      },
-    },
-    'js': {
-      title: 'delete-JavaScript',
-      lang: 'js',
-      transform() {
-        return ''
-      },
-    },
     // Android XML 输出
     'android-xml': {
       title: 'Android XML',
@@ -47,8 +33,6 @@ export default definePlugin({
         return generateComposeComponent(component)
       },
     },
-    // 原始 CSS 代码输出
-    'c-css': false,
     // Android Drawable (Vector or Shape)
     'drawable': {
       title: 'Android Drawable',
@@ -57,7 +41,6 @@ export default definePlugin({
         const { code, style } = params
 
         let svgContent = code || ''
-        let debugInfo = ''
 
         // 1. Try URL Decode
         if (svgContent.includes('%3C') || svgContent.includes('%3c')) {
@@ -89,7 +72,7 @@ export default definePlugin({
                   svgContent = atob(base64)
                 }
                 catch {
-                  debugInfo += '<!-- Base64 SVG 解码失败 -->'
+                  // ignore
                 }
               }
               else {
@@ -167,17 +150,29 @@ export default definePlugin({
           return shapes.join('\n')
         }
 
-        // 5. Debug Output if extraction failed
-        const paramKeys = Object.keys(params).join(',')
-        debugInfo += `<!-- Debug: keys=[${paramKeys}], code.length=${code?.length}, style.keys=[${Object.keys(style).join(',')}] -->`
-        const codePreview = code ? code.substring(0, 200).replace(/\n/g, ' ') : 'null'
-
-        return `${debugInfo}\n<!--\n未检测到 SVG 或 Shape 内容。\n1. 请确保您选中了一个 Vector 节点或包含 SVG 内容的 Frame。\n2. 请确认 Tempad 是否为该选中项生成了 SVG 代码。\n当前代码预览：${codePreview}\n-->`
+        // Return empty string to attempt to hide/empty the panel
+        return ''
       },
       transformComponent() {
         // 尝试从 fills 中提取（虽然之前尝试过不太行，但保留这个入口）
         return ''
       },
     },
+    'css': {
+      title: 'Original CSS',
+      lang: 'css',
+      transform() {
+        return ''
+      },
+    },
+    'js': {
+      title: 'Original JavaScript',
+      lang: 'js',
+      transform() {
+        return ''
+      },
+    },
+    // 原始 CSS 代码输出
+    'c-css': false,
   },
 })
