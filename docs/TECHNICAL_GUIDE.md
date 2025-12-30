@@ -104,9 +104,19 @@ Compose 代码生成比 XML 更复杂，因为它涉及函数调用链（Modifie
    *顺序很重要*：例如 `padding` 和 `background` 的顺序决定了背景是绘制在内边距之内还是之外。本插件采用了符合直觉的顺序：`Size -> Weight -> Margin(Outer Padding) -> Clip -> Background -> Border -> Padding(Inner)`。
 
 2. **代码组装**：
-   使用模板字符串拼接 imports、@Preview 注解、Composable 函数名、参数和内容块。
+   使用模板字符串拼接 Composable 函数名、参数和内容块。
 
-## 5. 如何开发你自己的插件
+## 5. 组件树生成 (实验性)
+
+插件支持 `transformComponent` 钩子，用于将 Figma 的组件实例 (`DesignComponent`) 转换为嵌套的 XML 或 Compose 代码。
+
+- **触发条件**：用户在 TemPad 中选中一个 Component Instance。
+- **限制**：由于 TemPad API 的限制，传递给 `transformComponent` 的节点信息（`DesignNode`）仅包含名称、类型和子节点结构，**不包含 CSS 样式信息**。
+- **实现**：
+  - `generateXmlComponent`：递归生成 XML 树，默认使用 `<FrameLayout>` 或 `<include>`。
+  - `generateComposeComponent`：递归生成 Compose 树，默认使用 `Box` 或组件名作为函数调用。
+
+## 6. 如何开发你自己的插件
 
 如果你想支持 Flutter, SwiftUI 或其他框架，可以参考以下步骤：
 
@@ -122,7 +132,7 @@ Compose 代码生成比 XML 更复杂，因为它涉及函数调用链（Modifie
    - 运行 `pnpm run dev` 或 `pnpm run build`。
    - 在 TemPad Dev 插件中加载 `dist/index.mjs` 进行测试。
 
-## 6. 最佳实践建议
+## 7. 最佳实践建议
 
 - **容错性**：设计稿数据可能不完整或不规范，代码中要有默认值处理（如默认颜色、默认尺寸）。
 - **代码风格**：生成的代码应符合目标语言的官方风格指南（如 Kotlin 的缩进和命名规范）。
