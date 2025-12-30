@@ -212,6 +212,19 @@ export function generateComposeCode(style: Record<string, string>): string {
   if (style['background-color']) {
     modifiers.push(`.background(${convertColor(style['background-color'])})`)
   }
+  else if (style.background) {
+    if (style.background.startsWith('var(')) {
+      // var(--xxx) -> R.drawable.xxx
+      const varName = style.background.match(/var\(--([\w-]+)\)/)?.[1]
+      if (varName) {
+        modifiers.push(`.paint(painterResource(id = R.drawable.${varName}), contentScale = ContentScale.FillBounds)`)
+      }
+    }
+    else if (!style.background.includes('url')) {
+      // Simple color fallback
+      modifiers.push(`.background(${convertColor(style.background)})`)
+    }
+  }
 
   // 5. Border
   if (style.border) {
