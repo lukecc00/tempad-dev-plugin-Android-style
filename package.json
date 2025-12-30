@@ -10,7 +10,7 @@
   "keywords": [],
   "sideEffects": false,
   "scripts": {
-    "build": "unbuild",
+    "build": "npm run gen:colors && unbuild",
     "dev": "unbuild --stub",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

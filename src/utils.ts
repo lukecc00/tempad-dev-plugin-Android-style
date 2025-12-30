@@ -122,16 +122,16 @@ export function convertColorToHex(color: string): string {
       // ... (add more if needed)
     }
     const mapped = map[color.toLowerCase()]
-    if (mapped) return convertColorToHex(mapped)
-    return '#000000' // Default fallback
+    if (mapped) {
+      return convertColorToHex(mapped)
+    }
+    return '#FF000000' // Default fallback to black (AARRGGBB)
   }
 
   // Construct Android Hex: #AARRGGBB
   const androidHex = `#${alpha}${hex}`
 
   // Try to find in color map (assets/colors.xml)
-  // Since we can't read file in browser environment, we hardcode the map or inject it.
-  // For this environment, I will embed the map derived from the file content you provided.
   const colorResource = findColorResource(androidHex)
   if (colorResource) {
     return `@color/${colorResource}`
@@ -142,7 +142,9 @@ export function convertColorToHex(color: string): string {
 
 function findColorResource(hex: string): string | null {
   // Direct match
-  if (COLOR_MAP[hex]) return COLOR_MAP[hex]
+  if (COLOR_MAP[hex]) {
+    return COLOR_MAP[hex]
+  }
 
   return null
 }
@@ -278,7 +280,9 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
         gravity = 'end'
       else if (align === 'left')
         gravity = 'start'
-      attrs['android:gravity'] = gravity
+      if (gravity) {
+        attrs['android:gravity'] = gravity
+      }
     }
 
     // Line Height
