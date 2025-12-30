@@ -372,23 +372,91 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   // 10. Positioning (Absolute)
   // Check for explicit top/left/right/bottom in style (passed by tempad for absolute pos)
   if (style.position === 'absolute' || style.top || style.left || style.right || style.bottom) {
-     if (style.top) attrs['android:layout_marginTop'] = convertUnit(style.top, 'dp')
-     if (style.left) attrs['android:layout_marginStart'] = convertUnit(style.left, 'dp')
-     if (style.right) attrs['android:layout_marginEnd'] = convertUnit(style.right, 'dp')
-     if (style.bottom) attrs['android:layout_marginBottom'] = convertUnit(style.bottom, 'dp')
-     
-     // Alignment
-     // If user has 'left' and 'right' unset, maybe alignParentStart? 
-     // Usually absolute means alignParentTop + alignParentStart + margins
-     if (style.top) attrs['android:layout_alignParentTop'] = 'true'
-     if (style.left) attrs['android:layout_alignParentStart'] = 'true'
-     if (style.right) attrs['android:layout_alignParentEnd'] = 'true'
-     if (style.bottom) attrs['android:layout_alignParentBottom'] = 'true'
-     
-     // Center Horizontal/Vertical
-     // If we detect `left: 50%` and `transform: translate(-50%)` it's centering, 
-     // but tempad usually gives calculated pixels.
-     // Let's rely on simple margins for now unless we see explicit center flags.
+    const parseVal = (v: string | undefined): number | null => {
+      if (!v)
+        return null
+      const match = v.match(/^(-?[\d.]+)px$/)
+      return match ? Number.parseFloat(match[1]) : null
+    }
+
+    const t = parseVal(style.top)
+    const b = parseVal(style.bottom)
+    const l = parseVal(style.left)
+    const r = parseVal(style.right)
+
+    // Helper to check for centering transform
+    const hasCenterY = (s: Record<string, string>): boolean => {
+      const t = s.transform || ''
+      return t.includes('translateY(-50%)') || t.includes('translate(-50%, -50%)') || t.includes('translate3d(-50%, -50%')
+    }
+    const hasCenterX = (s: Record<string, string>): boolean => {
+      const t = s.transform || ''
+      return t.includes('translateX(-50%)') || t.includes('translate(-50%, -50%)') || t.includes('translate3d(-50%, -50%')
+    }
+
+    // Vertical Positioning Heuristics
+    if (style.top === '50%' && hasCenterY(style)) {
+      attrs['android:layout_centerVertical'] = 'true'
+    }
+    else if (t !== null && b !== null) {
+      // Both top and bottom are set
+      if (Math.abs(t - b) < 5) {
+        // Almost equal -> Center Vertical
+        attrs['android:layout_centerVertical'] = 'true'
+      }
+      else if (t < b) {
+        // Closer to top
+        attrs['android:layout_alignParentTop'] = 'true'
+        attrs['android:layout_marginTop'] = convertUnit(style.top, 'dp')
+      }
+      else {
+        // Closer to bottom
+        attrs['android:layout_alignParentBottom'] = 'true'
+        attrs['android:layout_marginBottom'] = convertUnit(style.bottom, 'dp')
+      }
+    }
+    else if (t !== null) {
+      // Only top
+      attrs['android:layout_alignParentTop'] = 'true'
+      attrs['android:layout_marginTop'] = convertUnit(style.top, 'dp')
+    }
+    else if (b !== null) {
+      // Only bottom
+      attrs['android:layout_alignParentBottom'] = 'true'
+      attrs['android:layout_marginBottom'] = convertUnit(style.bottom, 'dp')
+    }
+
+    // Horizontal Positioning Heuristics
+    if (style.left === '50%' && hasCenterX(style)) {
+      attrs['android:layout_centerHorizontal'] = 'true'
+    }
+    else if (l !== null && r !== null) {
+      // Both left and right are set
+      if (Math.abs(l - r) < 5) {
+        // Almost equal -> Center Horizontal
+        attrs['android:layout_centerHorizontal'] = 'true'
+      }
+      else if (l < r) {
+        // Closer to left
+        attrs['android:layout_alignParentStart'] = 'true'
+        attrs['android:layout_marginStart'] = convertUnit(style.left, 'dp')
+      }
+      else {
+        // Closer to right
+        attrs['android:layout_alignParentEnd'] = 'true'
+        attrs['android:layout_marginEnd'] = convertUnit(style.right, 'dp')
+      }
+    }
+    else if (l !== null) {
+      // Only left
+      attrs['android:layout_alignParentStart'] = 'true'
+      attrs['android:layout_marginStart'] = convertUnit(style.left, 'dp')
+    }
+    else if (r !== null) {
+      // Only right
+      attrs['android:layout_alignParentEnd'] = 'true'
+      attrs['android:layout_marginEnd'] = convertUnit(style.right, 'dp')
+    }
   }
 
   return attrs

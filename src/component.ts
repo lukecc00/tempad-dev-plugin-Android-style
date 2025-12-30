@@ -129,8 +129,9 @@ ${indent}</${safeTagName}>`
 }
 
 export function generateXmlComponent(component: DesignComponent): string {
-  const debug = getDebugInfo(component)
-  return `${debug}\n${generateXmlNode(component, 0)}`
+  // Removed debug info as requested for cleaner output
+  // const debug = getDebugInfo(component)
+  return generateXmlNode(component, 0)
 }
 
 // --- Jetpack Compose Generation ---
@@ -215,9 +216,9 @@ ${indent}}`
 }
 
 export function generateComposeComponent(component: DesignComponent): string {
-  const debug = getComposeDebugInfo(component)
-  return `${debug}
-@Composable
+  // Removed debug info as requested for cleaner output
+  // const debug = getComposeDebugInfo(component)
+  return `@Composable
 fun ${sanitizeName(component.name) || 'MyComponent'}() {
 ${generateComposeNode(component, 1)}
 }`
