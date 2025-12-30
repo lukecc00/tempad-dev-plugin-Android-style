@@ -65,7 +65,7 @@ function detectComposableName(style: Record<string, string>): string {
 }
 
 // Convert CSS color to Compose Color
-function convertColor(color: string): string {
+export function convertColor(color: string): string {
   if (!color) {
     return 'Color.Unspecified'
   }

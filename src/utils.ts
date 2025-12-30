@@ -113,6 +113,9 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
     else w = convertUnit(w, 'dp')
     attrs['android:layout_width'] = w
   }
+  else {
+    attrs['android:layout_width'] = 'wrap_content' // Default
+  }
 
   if (style.height) {
     let h = style.height
@@ -122,6 +125,9 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
       h = 'wrap_content'
     else h = convertUnit(h, 'dp')
     attrs['android:layout_height'] = h
+  }
+  else {
+    attrs['android:layout_height'] = 'wrap_content' // Default
   }
 
   // Max/Min Size
