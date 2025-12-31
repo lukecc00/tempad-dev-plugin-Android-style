@@ -103,9 +103,55 @@ export default definePlugin({
           shapes.push('<?xml version="1.0" encoding="utf-8"?>')
           shapes.push('<shape xmlns:android="http://schemas.android.com/apk/res/android">')
 
+          // Gradient Support
+          const bg = style['background-image'] || style.background
+          if (bg && bg.includes('linear-gradient')) {
+            // Basic parsing for 2-color linear gradient
+            // linear-gradient(180deg, #Start 0%, #End 100%)
+            // linear-gradient(to right, #Start, #End)
+
+            let angle = '0'
+            let startColor = ''
+            let endColor = ''
+
+            // Extract angle
+            if (bg.includes('to top')) {
+              angle = '90'
+            }
+            else if (bg.includes('to right')) {
+              angle = '0'
+            }
+            else if (bg.includes('to bottom')) {
+              angle = '270'
+            }
+            else if (bg.includes('to left')) {
+              angle = '180'
+            }
+            else {
+              const degMatch = bg.match(/(\d+)deg/)
+              if (degMatch) {
+                // Android angle = (450 - cssAngle) % 360
+                const cssAngle = Number.parseInt(degMatch[1], 10)
+                angle = ((450 - cssAngle) % 360).toString()
+              }
+            }
+
+            // Extract Colors (Very basic regex, assumes hex or rgb)
+            // Matches #ABC, #AABBCC, rgb(...), rgba(...)
+            const colorRegex = /(#[0-9a-fA-F]{3,8}|rgba?\(.*?\))/g
+            const colors = bg.match(colorRegex)
+
+            if (colors && colors.length >= 2) {
+              startColor = convertColorToHex(colors[0])
+              endColor = convertColorToHex(colors[colors.length - 1]) // Use last as end
+
+              shapes.push(`  <gradient android:angle="${angle}" android:startColor="${startColor}" android:endColor="${endColor}" android:type="linear" />`)
+            }
+          }
+
           // Solid Color
           const colorStr = style['background-color'] || style.background || style.fill
-          if (colorStr && !colorStr.includes('url')) {
+          if (colorStr && !colorStr.includes('url') && !colorStr.includes('linear-gradient')) {
             if (colorStr.startsWith('var(')) {
               // Extract content inside var(...)
               const varMatch = colorStr.match(/var\(([^)]+)\)/)

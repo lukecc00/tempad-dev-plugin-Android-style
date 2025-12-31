@@ -153,13 +153,18 @@ function findColorResource(hex: string): string | null {
 // Map of Android attributes
 type AndroidAttributes = Record<string, string>
 
+// Helper to check component type including mapping
+function isTagType(tagName: string, baseType: string): boolean {
+  return tagName === baseType || tagName === getMappedTagName(baseType)
+}
+
 // Detect widget type based on style
 function detectTagName(style: Record<string, string>): string {
   // 1. ScrollView
   if (style['overflow-y'] === 'scroll' || style['overflow-y'] === 'auto')
-    return 'ScrollView'
+    return getMappedTagName('ScrollView')
   if (style['overflow-x'] === 'scroll' || style['overflow-x'] === 'auto')
-    return 'HorizontalScrollView'
+    return getMappedTagName('HorizontalScrollView')
 
   // 2. CardView (Shadow + Radius)
   if (style['box-shadow'])
@@ -205,6 +210,15 @@ function detectTagName(style: Record<string, string>): string {
   const hasDim = style.width || style.height
   const hasBg = style.background || style['background-color']
   const isContainer = style.padding || style.display
+  
+  // Divider heuristic: Very small dimension (<= 1px/1dp) + Background
+  const wNum = Number.parseFloat(style.width || '0')
+  const hNum = Number.parseFloat(style.height || '0')
+  const isDivider = (wNum > 0 && wNum <= 1) || (hNum > 0 && hNum <= 1)
+
+  if (isDivider && hasBg) {
+    return getMappedTagName('View')
+  }
 
   // Prefer FrameLayout for generic containers (Figma Frames)
   if (hasDim || hasBg || isContainer)
@@ -257,7 +271,7 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
 
   // 2. Background
   // CardView uses cardBackgroundColor instead of background
-  const isCard = tagName.includes('CardView')
+  const isCard = isTagType(tagName, 'CardView')
   const bgProp = isCard ? 'app:cardBackgroundColor' : 'android:background'
 
   let hasSetBackground = false
@@ -283,7 +297,7 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   }
 
   // 3. Text (Only for TextView)
-  if (tagName === 'TextView') {
+  if (isTagType(tagName, 'TextView')) {
     if (style.color)
       attrs['android:textColor'] = convertColorToHex(style.color)
     if (style['font-size'])
@@ -450,9 +464,15 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   if (style['margin-end'])
     attrs['android:layout_marginEnd'] = convertUnit(style['margin-end'], 'dp')
 
-  // 5. Opacity
+  // 5. Opacity & Visibility
   if (style.opacity) {
     attrs['android:alpha'] = style.opacity
+  }
+  if (style.display === 'none') {
+    attrs['android:visibility'] = 'gone'
+  }
+  else if (style.visibility === 'hidden') {
+    attrs['android:visibility'] = 'invisible'
   }
 
   // 6. Border Radius & Elevation (Specific handling)
@@ -460,6 +480,14 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
     const radius = convertUnit(style['border-radius'], 'dp')
     if (isCard) {
       attrs['app:cardCornerRadius'] = radius
+    }
+    else if (tagName.includes('SimpleDraweeView')) {
+      if (style['border-radius'] === '50%') {
+        attrs['fresco:roundAsCircle'] = 'true'
+      }
+      else {
+        attrs['fresco:roundedCornerRadius'] = radius
+      }
     }
     else {
       // For regular views, radius usually implies a shape drawable or outline clipping
@@ -486,7 +514,7 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   }
 
   // 7. LinearLayout Specifics
-  if (tagName === 'LinearLayout') {
+  if (isTagType(tagName, 'LinearLayout')) {
     if (style['flex-direction'] === 'column') {
       attrs['android:orientation'] = 'vertical'
     }
@@ -496,8 +524,9 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   }
 
   // 8. ImageView Specifics
-  if (tagName === 'ImageView' || tagName === 'com.facebook.drawee.view.SimpleDraweeView') {
-    if (tagName === 'ImageView') {
+  // ImageView and SimpleDraweeView handling
+  if (isTagType(tagName, 'ImageView') || tagName.includes('SimpleDraweeView')) {
+    if (isTagType(tagName, 'ImageView') && !tagName.includes('SimpleDraweeView')) {
       attrs['android:src'] = '@drawable/placeholder'
     }
     else {
@@ -517,7 +546,7 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
         scaleType = 'centerInside'
 
       if (scaleType) {
-        if (tagName === 'com.facebook.drawee.view.SimpleDraweeView') {
+        if (tagName.includes('SimpleDraweeView')) {
           attrs['fresco:actualImageScaleType'] = scaleType
         }
         else {
@@ -528,10 +557,10 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   }
 
   // 9. Gravity for Containers (RelativeLayout, LinearLayout, etc.)
-  if (tagName !== 'TextView' && tagName !== 'com.dragon.read.widget.scale.ScaleTextView') {
+  if (!isTagType(tagName, 'TextView')) {
     if (style['justify-content'] === 'center' || style['align-items'] === 'center') {
       let gravity = ''
-      if (tagName === 'LinearLayout') {
+      if (isTagType(tagName, 'LinearLayout')) {
         // Flex to Gravity mapping depends on orientation
         const isVert = attrs['android:orientation'] === 'vertical'
         // Main Axis: justify-content
@@ -654,7 +683,7 @@ export function generateAndroidTag(style: Record<string, string>): string {
   const attrs = cssToAndroidAttrs(style, tagName)
 
   // Add IDs and namespaces
-  if (tagName === 'TextView' || tagName === 'com.dragon.read.widget.scale.ScaleTextView') {
+  if (isTagType(tagName, 'TextView')) {
     if (!attrs['android:text'])
       attrs['android:text'] = '@string/some_text'
     attrs['android:id'] = '@+id/some_id'
@@ -670,7 +699,7 @@ export function generateAndroidTag(style: Record<string, string>): string {
     if (tagName.includes('CardView')) {
       attrs['xmlns:app'] = 'http://schemas.android.com/apk/res-auto'
     }
-    if (tagName === 'com.facebook.drawee.view.SimpleDraweeView') {
+    if (tagName.includes('SimpleDraweeView')) {
       attrs['xmlns:fresco'] = 'http://schemas.android.com/apk/res-auto'
     }
   }
