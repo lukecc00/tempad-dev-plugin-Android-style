@@ -107,9 +107,44 @@ export default definePlugin({
           const colorStr = style['background-color'] || style.background || style.fill
           if (colorStr && !colorStr.includes('url')) {
             if (colorStr.startsWith('var(')) {
-              const varName = colorStr.match(/var\(--([\w-]+)\)/)?.[1] || 'unknown'
-              // Try to be smart about variable names?
-              shapes.push(`  <solid android:color="@color/${varName}" />`)
+              // Extract content inside var(...)
+              const varMatch = colorStr.match(/var\(([^)]+)\)/)
+              let resolvedColor = ''
+
+              if (varMatch) {
+                const content = varMatch[1] // e.g. "--toast" or "--color, #FFF"
+                const parts = content.split(',').map(s => s.trim())
+                const varNameRaw = parts[0]
+                const fallback = parts[1]
+
+                // Strategy: If fallback is a valid hex/color, use it (it might map to a known resource name like @color/white)
+                if (fallback && (fallback.startsWith('#') || fallback.startsWith('rgb'))) {
+                  resolvedColor = convertColorToHex(fallback)
+                }
+
+                if (!resolvedColor) {
+                  // Sanitize varName
+                  // 1. Remove leading dashes
+                  let name = varNameRaw.replace(/^-+/, '')
+                  // 2. Replace non-alphanumeric with underscore
+                  name = name.replace(/\W/g, '_')
+                  // 3. Ensure starts with letter or underscore (Android resource rules)
+                  if (/^\d/.test(name)) {
+                    name = `_${name}`
+                  }
+                  // 4. Lowercase
+                  name = name.toLowerCase()
+
+                  if (name) {
+                    resolvedColor = `@color/${name}`
+                  }
+                  else {
+                    resolvedColor = '@color/unknown'
+                  }
+                }
+              }
+
+              shapes.push(`  <solid android:color="${resolvedColor || '@color/unknown'}" />`)
             }
             else {
               shapes.push(`  <solid android:color="${convertColorToHex(colorStr)}" />`)
