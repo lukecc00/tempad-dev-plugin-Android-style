@@ -159,17 +159,10 @@ export default definePlugin({
       },
     },
     'css': {
-      title: 'Original CSS',
+      title: 'Original Content',
       lang: 'css',
-      transform() {
-        return ''
-      },
-    },
-    'js': {
-      title: 'Original JavaScript',
-      lang: 'js',
-      transform() {
-        return ''
+      transform(params) {
+        return params.code || ''
       },
     },
     // 原始 CSS 代码输出
