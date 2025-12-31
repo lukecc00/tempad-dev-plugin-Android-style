@@ -159,8 +159,9 @@ export default definePlugin({
       },
     },
     'css': false,
+    'js': false,
     // 原始 CSS 代码输出
-    'c-css': {
+    'original-content': {
       title: 'Original Content',
       lang: 'css',
       transform(params) {
