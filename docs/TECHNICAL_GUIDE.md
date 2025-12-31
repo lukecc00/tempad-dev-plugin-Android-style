@@ -56,11 +56,15 @@ export default definePlugin({
 **实现代码**：`detectComposableName` (compose.ts) / `detectTagName` (utils.ts)
 
 规则示例：
-- 如果包含 `text-` 相关属性或 `font-` 属性 -> **Text / TextView**
-- 如果包含 `background-image` 或 `object-fit` -> **Image / ImageView**
-- 如果 `display: flex` 且 `flex-direction: column` -> **Column / LinearLayout(vertical)**
-- 如果包含 `box-shadow` -> **Card / CardView**
-- 默认情况 -> **Box / View**
+- **Text / TextView**：包含 `text-` 相关属性、`font-` 属性或 `line-height`。
+- **Image / ImageView**：
+  - 包含 `background-image: url(...)` 或 `object-fit`。
+  - **智能 Icon 识别**：尺寸小（<= 64px）且无 Flex 布局特征、无文本属性的元素，会被识别为图标（通常映射为 `SimpleDraweeView` 或 `ImageView`）。
+- **Column / LinearLayout**：`display: flex`。
+- **Card / CardView**：包含 `box-shadow`。
+- **ScrollView**：包含 `overflow: scroll/auto`。
+- **Divider / View**：极小尺寸（<= 1dp）且有背景色的元素，识别为分割线。
+- **Default**：`RelativeLayout` 或 `FrameLayout`（取决于是否为容器）。
 
 ### 3.2 单位转换与数值处理
 
@@ -73,15 +77,21 @@ export default definePlugin({
 - **Compose**：输出 `100.dp` (Kotlin 扩展属性语法)。
 - **字体**：特殊处理，转换为 `sp`。
 
-### 3.3 颜色处理
+### 3.3 颜色处理与资源映射
 
-CSS 颜色格式多样（Hex, RGB, RGBA, Color Names），需要统一转换为 Android 可用的格式。
+CSS 颜色格式多样（Hex, RGB, RGBA, Color Names, CSS Variables, Gradients），需要统一转换为 Android 可用的格式。
 
-**实现代码**：`convertColor` (compose.ts)
+**实现代码**：`convertColor` (compose.ts) / `src/index.ts` (Drawable)
 
-- **Hex**: `#RRGGBB` -> `Color(0xFFRRGGBB)`
-- **Alpha Hex**: `#RRGGBBAA` -> `Color(0xAARRGGBB)` (注意 Alpha 位置的调整)
-- **RGBA**: `rgba(r,g,b,a)` -> 计算 Alpha 整数值 -> 拼接 Hex。
+- **Hex/RGB**: `#RRGGBB` -> `Color(0xFFRRGGBB)` / `#RRGGBB`。
+- **CSS Variables**:
+  - 解析 `var(--name)`。
+  - **资源名清洗**：自动将非法字符（如 `/`, `-`, 中文）转换为下划线，生成合法的 Android 资源名（如 `@color/_toast`）。
+  - **Fallback 支持**：解析 `var(--name, #FFFFFF)`，优先提取 Fallback Hex 值（如果存在）。
+- **Gradients**:
+  - 解析 `linear-gradient`。
+  - 自动转换 CSS 角度（`to right`, `180deg`）为 Android `angle`。
+  - 生成 `<gradient>` 标签。
 
 ### 3.4 布局模型映射
 
@@ -89,13 +99,28 @@ CSS 的 Box Model (Padding/Margin) 和 Flexbox 需要映射到 Android 的布局
 
 - **Padding/Margin**:
   - CSS 支持简写 `padding: 10px 20px`。
-  - 需要解析为 `top`, `bottom`, `left`, `right` 四个方向。
-  - 映射到 Compose 的 `.padding(start=..., top=...)` 或 XML 的 `android:paddingStart` 等。
+  - 支持单方向属性 `padding-top`, `margin-left` 等。
+  - 映射到 XML 的 `android:paddingStart`, `android:layout_marginTop` 等。
 - **Flexbox**:
-  - `justify-content` -> `Arrangement` (Compose) / `gravity` (XML LinearLayout)
-  - `align-items` -> `Alignment` (Compose) / `gravity` (XML LinearLayout)
+  - `justify-content` -> `Arrangement` (Compose) / `gravity` (XML LinearLayout)。
+  - `align-items` -> `Alignment` (Compose) / `gravity` (XML LinearLayout)。
+- **Visibility**:
+  - `display: none` -> `android:visibility="gone"`。
+  - `visibility: hidden` -> `android:visibility="invisible"`。
 
-## 4. Jetpack Compose 生成特有逻辑
+## 4. 组件映射系统
+
+为了支持项目特定的自定义控件（如 `ScaleTextView`, `SimpleDraweeView`），插件引入了动态映射系统。
+
+**配置文件**：`src/mapping.ts`
+
+- **工作原理**：
+  - `detectTagName` 返回基础组件名（如 `TextView`）。
+  - `getMappedTagName` 查表将其转换为自定义类名（如 `com.example.MyTextView`）。
+  - **属性适配**：`utils.ts` 中的 `isTagType` 函数确保即使组件名被映射，相关的属性生成逻辑（如 `android:textColor`）依然生效。
+  - **特定适配**：针对 `SimpleDraweeView` 等常用库，内置了特殊属性支持（如 `fresco:roundAsCircle`）。
+
+## 5. Jetpack Compose 生成特有逻辑
 
 Compose 代码生成比 XML 更复杂，因为它涉及函数调用链（Modifier）。
 

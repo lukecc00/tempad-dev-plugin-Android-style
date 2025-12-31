@@ -12,14 +12,15 @@
 
 ### Android XML
 - **布局属性**：
-  - `width` / `height` 支持 `match_parent` (100%), `wrap_content` (auto) 和具体数值。
-  - 支持 `padding` 和 `margin` 的全方位解析（包括简写形式）。
+  - `width` / `height` 支持 `match_parent`, `wrap_content` 和具体数值。
+  - 支持 `padding` / `margin` 的全方位解析（包括单方向属性）。
+  - **可见性**：`display: none` -> `gone`, `visibility: hidden` -> `invisible`。
 - **样式映射**：
-  - `background-color` -> `android:background`
-  - `color` -> `android:textColor`
-  - `font-weight: bold` -> `android:textStyle="bold"`
-  - `text-align` -> `android:gravity`
-  - `border-radius` -> `app:cardCornerRadius` (CardView 支持)
+  - **背景**：支持纯色、`linear-gradient` 渐变、`url(...)` 图片资源。
+  - **文本**：`color`, `font-size`, `font-weight`, `line-height`, `letter-spacing` 等完整支持。
+  - **图标**：智能识别小尺寸 Icon 并映射为 `ImageView` / `SimpleDraweeView`。
+  - **资源名清洗**：自动将非法 CSS 变量名（如 `@color/-toast`）转换为合法 Android 资源名（`@color/_toast`）。
+- **组件映射**：支持将标准组件映射为自定义 View（如 `ScaleTextView`），并自动适配属性。
 
 ### Jetpack Compose
 - **Composable 生成**：自动生成 `Box`, `Column`, `Row`, `Text`, `Image`, `Card` 等组件代码。
