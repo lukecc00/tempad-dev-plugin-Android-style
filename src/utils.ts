@@ -1,4 +1,5 @@
 import { COLOR_MAP } from './color-map'
+import { getMappedTagName } from './mapping'
 
 // Helper to convert px to dp/sp
 export function convertUnit(value: string, type: 'dp' | 'sp' = 'dp'): string {
@@ -162,20 +163,43 @@ function detectTagName(style: Record<string, string>): string {
 
   // 2. CardView (Shadow + Radius)
   if (style['box-shadow'])
-    return 'androidx.cardview.widget.CardView'
+    return getMappedTagName('CardView')
 
   // 3. ImageView
-  if ((style['background-image'] && style['background-image'].includes('url')) || style['object-fit'])
-    return 'ImageView'
+  const bg = style['background-image'] || style.background
+  // Check for:
+  // - url(...) in background (image resource)
+  // - object-fit (image sizing)
+  // - aspect-ratio (common for images)
+  // - width/height + background (could be an icon if small, or image placeholder)
+  const isImageResource = bg && /url\(/.test(bg)
+  // Check for small dimensions (<= 64px) which usually imply icons
+  // AND verify it's not just a text container (which would have font properties caught by TextView check)
+  // But wait, TextView check is AFTER this.
+  // Let's refine: If it has width/height AND it's small, it's likely an icon/image.
+  const w = Number.parseFloat(style.width || '0')
+  const h = Number.parseFloat(style.height || '0')
+  const isSmall = w > 0 && h > 0 && w <= 64 && h <= 64
+  
+  // Icon heuristic: Small fixed size + Not a flex container + Not a text node (usually)
+  // We relax the background requirement because many icons are just empty frames or vector containers in Figma
+  const isFlex = style.display === 'flex'
+  const hasTextProps = style['font-family'] || style['font-size'] || style.color
+
+  const isIcon = isSmall && !isFlex && !hasTextProps
+
+  if (isImageResource || style['object-fit'] || isIcon) {
+    return getMappedTagName('ImageView')
+  }
 
   // 4. LinearLayout (Flex)
   if (style.display === 'flex')
-    return 'LinearLayout'
+    return getMappedTagName('LinearLayout')
 
   // 5. TextView (Text content)
   // Strong signals for text
   if (style['font-family'] || style.color || style['font-size'] || style['text-align'] || style['line-height'] || style['text-overflow'])
-    return 'TextView'
+    return getMappedTagName('TextView')
 
   // 6. Generic Box (FrameLayout/RelativeLayout/View)
   const hasDim = style.width || style.height
@@ -184,10 +208,10 @@ function detectTagName(style: Record<string, string>): string {
 
   // Prefer FrameLayout for generic containers (Figma Frames)
   if (hasDim || hasBg || isContainer)
-    return 'FrameLayout'
+    return getMappedTagName('FrameLayout')
 
   // Default container
-  return 'RelativeLayout'
+  return getMappedTagName('RelativeLayout')
 }
 
 // Core conversion logic
@@ -390,14 +414,41 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   }
 
   // 4. Box Model
+  // Handle Padding
   if (style.padding) {
     const p = parseBoxModel('padding', style.padding)
     Object.assign(attrs, p)
   }
+  if (style['padding-top'])
+    attrs['android:paddingTop'] = convertUnit(style['padding-top'], 'dp')
+  if (style['padding-bottom'])
+    attrs['android:paddingBottom'] = convertUnit(style['padding-bottom'], 'dp')
+  if (style['padding-left'])
+    attrs['android:paddingStart'] = convertUnit(style['padding-left'], 'dp')
+  if (style['padding-right'])
+    attrs['android:paddingEnd'] = convertUnit(style['padding-right'], 'dp')
+  if (style['padding-start'])
+    attrs['android:paddingStart'] = convertUnit(style['padding-start'], 'dp')
+  if (style['padding-end'])
+    attrs['android:paddingEnd'] = convertUnit(style['padding-end'], 'dp')
+
+  // Handle Margin
   if (style.margin) {
     const m = parseBoxModel('margin', style.margin)
     Object.assign(attrs, m)
   }
+  if (style['margin-top'])
+    attrs['android:layout_marginTop'] = convertUnit(style['margin-top'], 'dp')
+  if (style['margin-bottom'])
+    attrs['android:layout_marginBottom'] = convertUnit(style['margin-bottom'], 'dp')
+  if (style['margin-left'])
+    attrs['android:layout_marginStart'] = convertUnit(style['margin-left'], 'dp')
+  if (style['margin-right'])
+    attrs['android:layout_marginEnd'] = convertUnit(style['margin-right'], 'dp')
+  if (style['margin-start'])
+    attrs['android:layout_marginStart'] = convertUnit(style['margin-start'], 'dp')
+  if (style['margin-end'])
+    attrs['android:layout_marginEnd'] = convertUnit(style['margin-end'], 'dp')
 
   // 5. Opacity
   if (style.opacity) {
@@ -445,18 +496,39 @@ export function cssToAndroidAttrs(style: Record<string, string>, tagName: string
   }
 
   // 8. ImageView Specifics
-  if (tagName === 'ImageView') {
-    attrs['android:src'] = '@drawable/placeholder'
+  if (tagName === 'ImageView' || tagName === 'com.facebook.drawee.view.SimpleDraweeView') {
+    if (tagName === 'ImageView') {
+      attrs['android:src'] = '@drawable/placeholder'
+    }
+    else {
+      // SimpleDraweeView typically uses fresco:placeholderImage, but we can't easily generate namespaces dynamically on the root unless we refactor.
+      // Assuming standard usage.
+      // However, user might expect android:src to NOT be there if it's a network image.
+      // Let's add a placeholder anyway if needed, or leave it empty.
+      // But SimpleDraweeView often needs a URI.
+      // attrs['fresco:actualImageUri'] = ... (can't determine from style easily without logic)
+    }
+
     if (style['object-fit']) {
+      let scaleType = ''
       if (style['object-fit'] === 'cover')
-        attrs['android:scaleType'] = 'centerCrop'
+        scaleType = 'centerCrop'
       else if (style['object-fit'] === 'contain')
-        attrs['android:scaleType'] = 'centerInside'
+        scaleType = 'centerInside'
+
+      if (scaleType) {
+        if (tagName === 'com.facebook.drawee.view.SimpleDraweeView') {
+          attrs['fresco:actualImageScaleType'] = scaleType
+        }
+        else {
+          attrs['android:scaleType'] = scaleType
+        }
+      }
     }
   }
 
   // 9. Gravity for Containers (RelativeLayout, LinearLayout, etc.)
-  if (tagName !== 'TextView') {
+  if (tagName !== 'TextView' && tagName !== 'com.dragon.read.widget.scale.ScaleTextView') {
     if (style['justify-content'] === 'center' || style['align-items'] === 'center') {
       let gravity = ''
       if (tagName === 'LinearLayout') {
@@ -582,7 +654,7 @@ export function generateAndroidTag(style: Record<string, string>): string {
   const attrs = cssToAndroidAttrs(style, tagName)
 
   // Add IDs and namespaces
-  if (tagName === 'TextView') {
+  if (tagName === 'TextView' || tagName === 'com.dragon.read.widget.scale.ScaleTextView') {
     if (!attrs['android:text'])
       attrs['android:text'] = '@string/some_text'
     attrs['android:id'] = '@+id/some_id'
@@ -597,6 +669,9 @@ export function generateAndroidTag(style: Record<string, string>): string {
     attrs['xmlns:android'] = 'http://schemas.android.com/apk/res/android'
     if (tagName.includes('CardView')) {
       attrs['xmlns:app'] = 'http://schemas.android.com/apk/res-auto'
+    }
+    if (tagName === 'com.facebook.drawee.view.SimpleDraweeView') {
+      attrs['xmlns:fresco'] = 'http://schemas.android.com/apk/res-auto'
     }
   }
 

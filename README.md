@@ -59,6 +59,25 @@ pnpm run gen:colors
 
 该命令会读取 `assets/colors.xml` 并自动生成 `src/color-map.ts` 文件。
 
+4. **自定义组件映射**
+
+插件支持将基础组件映射为自定义的 Android View 类。例如，默认情况下：
+- `TextView` -> `com.dragon.read.widget.scale.ScaleTextView`
+- `ImageView` -> `com.facebook.drawee.view.SimpleDraweeView`
+
+如果需要修改这些映射关系，请编辑 `src/mapping.ts` 文件：
+
+```typescript
+export const COMPONENT_MAPPING: Record<string, string> = {
+  // Base Component -> Custom Class
+  TextView: 'com.your.package.CustomTextView',
+  ImageView: 'com.your.package.CustomImageView',
+  // ... 其他组件
+};
+```
+
+修改后请重新运行构建命令 `pnpm run build`。
+
 构建产物位于 `dist/index.mjs`。
 
 关于本插件的技术实现原理和开发指南，请参考 [技术文档](./docs/TECHNICAL_GUIDE.md)。
