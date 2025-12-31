@@ -6,6 +6,7 @@ import {
   convertColorToHex,
   convertUnit,
   generateAndroidTag,
+  sanitizeResourceName,
 } from './utils'
 
 export default definePlugin({
@@ -169,17 +170,7 @@ export default definePlugin({
                 }
 
                 if (!resolvedColor) {
-                  // Sanitize varName
-                  // 1. Remove leading dashes
-                  let name = varNameRaw.replace(/^-+/, '')
-                  // 2. Replace non-alphanumeric with underscore
-                  name = name.replace(/\W/g, '_')
-                  // 3. Ensure starts with letter or underscore (Android resource rules)
-                  if (/^\d/.test(name)) {
-                    name = `_${name}`
-                  }
-                  // 4. Lowercase
-                  name = name.toLowerCase()
+                  const name = sanitizeResourceName(varNameRaw)
 
                   if (name) {
                     resolvedColor = `@color/${name}`

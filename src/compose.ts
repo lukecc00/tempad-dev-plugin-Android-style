@@ -1,4 +1,4 @@
-import { convertColorToHex, parseBoxModel } from './utils'
+import { convertColorToHex, parseBoxModel, sanitizeResourceName } from './utils'
 
 // Helper to convert px to dp/sp for Compose (with dot syntax)
 function convertComposeUnit(value: string, type: 'dp' | 'sp' = 'dp'): string {
@@ -43,7 +43,18 @@ function detectComposableName(style: Record<string, string>): string {
   }
 
   // 3. Image
-  if ((style['background-image'] && style['background-image'].includes('url')) || style['object-fit']) {
+  const bg = style['background-image'] || style.background
+  const isImageResource = (bg && bg.includes('url')) || style['object-fit']
+
+  // Icon heuristic
+  const w = Number.parseFloat(style.width || '0')
+  const h = Number.parseFloat(style.height || '0')
+  const isSmall = w > 0 && h > 0 && w <= 64 && h <= 64
+  const isFlex = style.display === 'flex'
+  const hasTextProps = style['font-family'] || style['font-size'] || style.color
+  const isIcon = isSmall && !isFlex && !hasTextProps
+
+  if (isImageResource || isIcon) {
     return 'Image'
   }
 
@@ -68,6 +79,28 @@ function detectComposableName(style: Record<string, string>): string {
 export function convertColor(color: string): string {
   if (!color) {
     return 'Color.Unspecified'
+  }
+
+  // Handle var(...)
+  if (color.startsWith('var(')) {
+    const varMatch = color.match(/var\(([^)]+)\)/)
+    if (varMatch) {
+      const content = varMatch[1]
+      const parts = content.split(',').map(s => s.trim())
+      const varNameRaw = parts[0]
+      const fallback = parts[1]
+
+      // Try fallback
+      if (fallback && (fallback.startsWith('#') || fallback.startsWith('rgb'))) {
+        return convertColor(fallback)
+      }
+
+      // Sanitize name
+      const name = sanitizeResourceName(varNameRaw)
+      if (name) {
+        return `colorResource(id = R.color.${name})`
+      }
+    }
   }
 
   // Use shared utility to resolve color (handles mapping to colors.xml)
@@ -128,9 +161,30 @@ export function generateComposeCode(style: Record<string, string>): string {
   }
 
   // 2. Margin (Outer Padding)
-  if (style.margin) {
-    const m = parseBoxModel('margin', style.margin)
+  if (style.margin || style['margin-top'] || style['margin-bottom'] || style['margin-left'] || style['margin-right'] || style['margin-start'] || style['margin-end']) {
+    const m = style.margin ? parseBoxModel('margin', style.margin) : {}
     const args = []
+
+    // Merge individual props
+    if (style['margin-top']) {
+      m['android:layout_marginTop'] = convertComposeUnit(style['margin-top'], 'dp')
+    }
+    if (style['margin-bottom']) {
+      m['android:layout_marginBottom'] = convertComposeUnit(style['margin-bottom'], 'dp')
+    }
+    if (style['margin-left']) {
+      m['android:layout_marginStart'] = convertComposeUnit(style['margin-left'], 'dp')
+    }
+    if (style['margin-right']) {
+      m['android:layout_marginEnd'] = convertComposeUnit(style['margin-right'], 'dp')
+    }
+    if (style['margin-start']) {
+      m['android:layout_marginStart'] = convertComposeUnit(style['margin-start'], 'dp')
+    }
+    if (style['margin-end']) {
+      m['android:layout_marginEnd'] = convertComposeUnit(style['margin-end'], 'dp')
+    }
+
     if (m['android:layout_marginStart'])
       args.push(`start = ${toComposeUnit(m['android:layout_marginStart'])}`)
     if (m['android:layout_marginTop'])
@@ -149,26 +203,79 @@ export function generateComposeCode(style: Record<string, string>): string {
 
   // 3. Clip (Border Radius) - Clip before background to shape the background
   if (style['border-radius']) {
-    const radius = convertComposeUnit(style['border-radius'], 'dp')
-    modifiers.push(`.clip(RoundedCornerShape(${radius}))`)
+    if (style['border-radius'] === '50%') {
+      modifiers.push('.clip(CircleShape)')
+    }
+    else {
+      const radius = convertComposeUnit(style['border-radius'], 'dp')
+      modifiers.push(`.clip(RoundedCornerShape(${radius}))`)
+    }
   }
 
   // 4. Background
-  if (style['background-color']) {
+  // Gradient Support
+  const bg = style['background-image'] || style.background
+  if (bg && bg.includes('linear-gradient')) {
+    const colorRegex = /(#[0-9a-fA-F]{3,8}|rgba?\(.*?\))/g
+    const colors = bg.match(colorRegex)
+    if (colors && colors.length >= 2) {
+      const color1 = convertColor(colors[0])
+      const color2 = convertColor(colors[colors.length - 1])
+
+      // Determine direction
+      // CSS default is 'to bottom' (180deg)
+      const isToTop = bg.includes('to top') || bg.includes('0deg')
+      const isToRight = bg.includes('to right') || bg.includes('90deg')
+      const isToLeft = bg.includes('to left') || bg.includes('270deg')
+      // 'to bottom' is default or 180deg
+
+      if (isToRight) {
+        // Left -> Right
+        modifiers.push(`.background(Brush.horizontalGradient(listOf(${color1}, ${color2})))`)
+      }
+      else if (isToLeft) {
+        // Right -> Left (Swap colors for horizontal)
+        modifiers.push(`.background(Brush.horizontalGradient(listOf(${color2}, ${color1})))`)
+      }
+      else if (isToTop) {
+        // Bottom -> Top (Swap colors for vertical)
+        modifiers.push(`.background(Brush.verticalGradient(listOf(${color2}, ${color1})))`)
+      }
+      else {
+        // Top -> Bottom (Default)
+        modifiers.push(`.background(Brush.verticalGradient(listOf(${color1}, ${color2})))`)
+      }
+    }
+  }
+  else if (style['background-color']) {
     modifiers.push(`.background(${convertColor(style['background-color'])})`)
   }
   else if (style.background) {
     if (style.background.startsWith('var(')) {
       // var(--xxx) -> R.drawable.xxx
-      const varName = style.background.match(/var\(--([\w-]+)\)/)?.[1]
-      if (varName) {
-        modifiers.push(`.paint(painterResource(id = R.drawable.${varName}), contentScale = ContentScale.FillBounds)`)
+      const varMatch = style.background.match(/var\(([^)]+)\)/)
+      if (varMatch) {
+        // Sanitize name for drawable
+        const name = sanitizeResourceName(varMatch[1].split(',')[0].trim())
+        if (name) {
+          modifiers.push(`.paint(painterResource(id = R.drawable.${name}), contentScale = ContentScale.FillBounds)`)
+        }
       }
     }
     else if (!style.background.includes('url')) {
       // Simple color fallback
       modifiers.push(`.background(${convertColor(style.background)})`)
     }
+  }
+
+  // Visibility
+  if (style.display === 'none') {
+    // gone -> size(0)
+    modifiers.push('.size(0.dp)')
+  }
+  else if (style.visibility === 'hidden') {
+    // invisible -> alpha(0)
+    modifiers.push('.alpha(0f)')
   }
 
   // 5. Border
@@ -184,9 +291,30 @@ export function generateComposeCode(style: Record<string, string>): string {
   }
 
   // 6. Padding (Inner)
-  if (style.padding) {
-    const p = parseBoxModel('padding', style.padding)
+  if (style.padding || style['padding-top'] || style['padding-bottom'] || style['padding-left'] || style['padding-right'] || style['padding-start'] || style['padding-end']) {
+    const p = style.padding ? parseBoxModel('padding', style.padding) : {}
     const args = []
+
+    // Merge individual props
+    if (style['padding-top']) {
+      p['android:paddingTop'] = convertComposeUnit(style['padding-top'], 'dp')
+    }
+    if (style['padding-bottom']) {
+      p['android:paddingBottom'] = convertComposeUnit(style['padding-bottom'], 'dp')
+    }
+    if (style['padding-left']) {
+      p['android:paddingStart'] = convertComposeUnit(style['padding-left'], 'dp')
+    }
+    if (style['padding-right']) {
+      p['android:paddingEnd'] = convertComposeUnit(style['padding-right'], 'dp')
+    }
+    if (style['padding-start']) {
+      p['android:paddingStart'] = convertComposeUnit(style['padding-start'], 'dp')
+    }
+    if (style['padding-end']) {
+      p['android:paddingEnd'] = convertComposeUnit(style['padding-end'], 'dp')
+    }
+
     if (p['android:paddingStart'])
       args.push(`start = ${toComposeUnit(p['android:paddingStart'])}`)
     if (p['android:paddingTop'])
@@ -333,6 +461,15 @@ export function generateComposeCode(style: Record<string, string>): string {
         params.push(`contentScale = ContentScale.Fit`)
     }
   }
+  else if (composableName === 'Card') {
+    // Add Elevation
+    if (style['box-shadow']) {
+      params.push(`elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)`)
+    }
+    else {
+      params.push(`elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)`)
+    }
+  }
   else if (composableName === 'Column' || composableName === 'Row') {
     // Alignment/Arrangement
     if (composableName === 'Column') {
@@ -360,6 +497,26 @@ export function generateComposeCode(style: Record<string, string>): string {
         params.push(`verticalAlignment = Alignment.CenterVertically`)
       else if (style['align-items'] === 'flex-end')
         params.push(`verticalAlignment = Alignment.Bottom`)
+    }
+  }
+  else if (composableName === 'Box') {
+    // Box Content Alignment
+    if (style['justify-content'] === 'center' || style['align-items'] === 'center') {
+      if (style['justify-content'] === 'center' && style['align-items'] === 'center') {
+        params.push(`contentAlignment = Alignment.Center`)
+      }
+      else if (style['justify-content'] === 'center') {
+        // Justify in Box (usually horizontal if row, but Box has no axis)
+        // Actually, CSS justify-content aligns along main axis, align-items along cross.
+        // For a generic box, we assume it centers children.
+        // But without flex-direction, it's ambiguous.
+        // Let's assume standard centering behavior if both are present.
+        // If only one...
+        params.push(`contentAlignment = Alignment.Center`)
+      }
+      else if (style['align-items'] === 'center') {
+        params.push(`contentAlignment = Alignment.Center`)
+      }
     }
   }
 

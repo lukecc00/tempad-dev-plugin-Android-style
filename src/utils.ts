@@ -150,6 +150,19 @@ function findColorResource(hex: string): string | null {
   return null
 }
 
+export function sanitizeResourceName(name: string): string {
+  // 1. Remove leading dashes
+  let sanitized = name.replace(/^-+/, '')
+  // 2. Replace non-alphanumeric with underscore
+  sanitized = sanitized.replace(/\W/g, '_')
+  // 3. Ensure starts with letter or underscore
+  if (/^\d/.test(sanitized)) {
+    sanitized = `_${sanitized}`
+  }
+  // 4. Lowercase
+  return sanitized.toLowerCase()
+}
+
 // Map of Android attributes
 type AndroidAttributes = Record<string, string>
 
