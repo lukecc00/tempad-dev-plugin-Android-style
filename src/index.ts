@@ -158,14 +158,14 @@ export default definePlugin({
         return ''
       },
     },
-    'css': {
+    'css': false,
+    // 原始 CSS 代码输出
+    'c-css': {
       title: 'Original Content',
       lang: 'css',
       transform(params) {
         return params.code || ''
       },
     },
-    // 原始 CSS 代码输出
-    'c-css': false,
   },
 })
